@@ -322,4 +322,4 @@ export default function App() {
 }
 
 
-{/* nutritrack@admin2026 */}
+{/* PASSWORD: nutritrack@admin2026 */}

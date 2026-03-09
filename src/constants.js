@@ -70,6 +70,8 @@ export const FOODS = [
   {id:43, name:"Khichdi (100g)",          cal:124, pro:4.5, carb:22,   fat:2,    fib:2.5,  cat:"Indian"},
   {id:44, name:"Aloo Paratha (1)",        cal:280, pro:5,   carb:40,   fat:10,   fib:3,    cat:"Indian"},
   {id:45, name:"Rasam (100ml)",           cal:25,  pro:1,   carb:4,    fat:0.5,  fib:1,    cat:"Indian"},
+  {id:46, name:"Biryani Mutton (200g)",  cal:235, pro:15,  carb:46,   fat:15,    fib:0.0,  cat:"Indian"},
+  {id:47, name:"White Rice (100g Cooked)",  cal:200, pro:2.7,  carb:28,   fat:0.3,    fib:0.5,  cat:"Indian"},
 ];
 
 export const MEALS = ["Breakfast", "Lunch", "Dinner", "Snacks"];
