@@ -148,7 +148,7 @@ export default function App() {
   const [meal, setMeal]       = useState("Breakfast");
   const [cf, setCf]           = useState({name:"",cal:"",pro:"",carb:"",fat:"",fib:""});
   const [notif, setNotif]     = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(sessionStorage.getItem("nt_admin")==="true");
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [logoClicks, setLogoClicks] = useState(0);
 
@@ -252,9 +252,9 @@ export default function App() {
       {/* Toast */}
       {notif&&<div className="notif-anim" style={{position:"fixed",top:20,right:20,zIndex:9999,background:notif.type==="err"?C.redL:C.accentLL,border:`1.5px solid ${notif.type==="err"?C.red:C.accent}`,borderRadius:12,padding:"12px 20px",color:notif.type==="err"?C.red:C.accent,fontWeight:700,fontSize:14,boxShadow:"0 8px 24px rgba(26,43,74,0.15)",maxWidth:300}}>{notif.type==="err"?"🗑️ ":"✅ "}{notif.msg}</div>}
 
-      <AdminLoginModal open={showAdminLogin} onClose={()=>setShowAdminLogin(false)} onSuccess={()=>{setIsAdmin(true);setTab("admin");toast("🔐 Admin access granted!");}}/>
+      <AdminLoginModal open={showAdminLogin} onClose={()=>setShowAdminLogin(false)} onSuccess={()=>{setIsAdmin(true);sessionStorage.setItem("nt_admin","true");setTab("admin");toast("🔐 Admin access granted!");}}/>
 
-      {isAdmin&&<button onClick={()=>{setIsAdmin(false);setTab("dashboard");toast("Logged out of admin","err");}} style={{position:"fixed",bottom:isMobile?80:20,right:16,zIndex:1000,background:"#C53030",border:"none",color:"white",padding:"8px 16px",borderRadius:99,fontSize:12,fontWeight:700,cursor:"pointer",boxShadow:"0 4px 14px rgba(197,48,48,0.3)",fontFamily:"'Inter',sans-serif"}}>🔐 Exit Admin</button>}
+      {isAdmin&&<button onClick={()=>{setIsAdmin(false);sessionStorage.removeItem("nt_admin");setTab("dashboard");toast("Logged out of admin","err");}} style={{position:"fixed",bottom:isMobile?80:20,right:16,zIndex:1000,background:"#C53030",border:"none",color:"white",padding:"8px 16px",borderRadius:99,fontSize:12,fontWeight:700,cursor:"pointer",boxShadow:"0 4px 14px rgba(197,48,48,0.3)",fontFamily:"'Inter',sans-serif"}}>🔐 Exit Admin</button>}
 
       {/* DESKTOP */}
       {!isMobile&&(

@@ -1,55 +1,68 @@
 import { useState, useEffect } from "react";
-import { collection, getDocs, deleteDoc, doc, writeBatch } from "firebase/firestore";
+import { collection, onSnapshot, deleteDoc, doc, writeBatch, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { C } from "../constants";
 import { Icons } from "./UI";
 
 export default function AdminPanel({ isMobile }) {
-  const [view, setView]               = useState("dashboard");
-  const [stats, setStats]             = useState({totalUsers:0,activeToday:0,totalVisits:0,todayVisits:0});
-  const [users, setUsers]             = useState([]);
+  const [view, setView]             = useState("dashboard");
+  const [stats, setStats]           = useState({totalUsers:0,activeToday:0,totalVisits:0,todayVisits:0});
+  const [users, setUsers]           = useState([]);
   const [recentActive, setRecentActive] = useState([]);
-  const [loading, setLoading]         = useState(true);
-  const [deleting, setDeleting]       = useState(null);   // uid being deleted
-  const [confirmDel, setConfirmDel]   = useState(null);   // user object to confirm
+  const [loading, setLoading]       = useState(true);
+  const [deleting, setDeleting]     = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null);
 
-  const fetchAll = async () => {
-    try {
-      const today = new Date().toISOString().split("T")[0];
-      const usersSnap  = await getDocs(collection(db,"users"));
-      const allUsers   = usersSnap.docs.map(d=>({id:d.id,...d.data()}));
-      const visitsSnap = await getDocs(collection(db,"visits"));
-      const allVisits  = visitsSnap.docs.map(d=>({id:d.id,...d.data()}));
-      const todayVisits= allVisits.filter(v=>v.date===today);
-      const activeToday= [...new Set(todayVisits.map(v=>v.userId))];
-      const sorted     = [...allVisits].sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,10);
-      setStats({ totalUsers:allUsers.length, activeToday:activeToday.length, totalVisits:allVisits.length, todayVisits:todayVisits.length });
-      setUsers(allUsers.sort((a,b)=>(b.joinDate||"").localeCompare(a.joinDate||"")));
+  useEffect(()=>{
+    const today = new Date().toISOString().split("T")[0];
+    let usersData   = [];
+    let visitsData  = [];
+    let loadedCount = 0;
+
+    const processData = () => {
+      // Stats
+      const todayVisits  = visitsData.filter(v=>v.date===today);
+      const activeToday  = [...new Set(todayVisits.map(v=>v.userId))];
+      const sorted       = [...visitsData].sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,10);
+
+      setStats({
+        totalUsers:  usersData.length,
+        activeToday: activeToday.length,
+        totalVisits: visitsData.length,
+        todayVisits: todayVisits.length,
+      });
+      setUsers([...usersData].sort((a,b)=>(b.joinDate||"").localeCompare(a.joinDate||"")));
       setRecentActive(sorted);
-    } catch(e){ console.log("Admin fetch error:",e); }
-    finally { setLoading(false); }
-  };
+      if(loadedCount < 2) { loadedCount++; if(loadedCount===2) setLoading(false); }
+    };
 
-  useEffect(()=>{ fetchAll(); },[]);
+    // Real-time listener for users
+    const unsubUsers = onSnapshot(collection(db,"users"), snap=>{
+      usersData = snap.docs.map(d=>({id:d.id,...d.data()}));
+      processData();
+    }, e=>{ console.log("Users listener error:",e); setLoading(false); });
+
+    // Real-time listener for visits
+    const unsubVisits = onSnapshot(collection(db,"visits"), snap=>{
+      visitsData = snap.docs.map(d=>({id:d.id,...d.data()}));
+      processData();
+    }, e=>{ console.log("Visits listener error:",e); setLoading(false); });
+
+    // Cleanup listeners when admin panel unmounts
+    return () => { unsubUsers(); unsubVisits(); };
+  },[]);
 
   // Delete user + all their visits
   const deleteUser = async (user) => {
     setDeleting(user.uid);
     try {
-      // Delete user document
       await deleteDoc(doc(db,"users", user.uid));
-
-      // Delete all visits by this user using batch
       const visitsSnap = await getDocs(collection(db,"visits"));
       const batch = writeBatch(db);
       visitsSnap.docs.forEach(d=>{ if(d.data().userId===user.uid) batch.delete(d.ref); });
       await batch.commit();
-
-      // Update local state
-      setUsers(p=>p.filter(u=>u.uid!==user.uid));
-      setRecentActive(p=>p.filter(v=>v.userId!==user.uid));
-      setStats(p=>({...p, totalUsers:p.totalUsers-1}));
       setConfirmDel(null);
+      // No need to update state manually — onSnapshot will auto-update! ✅
     } catch(e){ console.log("Delete error:",e); alert("Delete failed: "+e.message); }
     finally { setDeleting(null); }
   };
@@ -65,16 +78,13 @@ export default function AdminPanel({ isMobile }) {
   return (
     <div style={{display:"flex",flexDirection:"column",gap:18}}>
 
-      {/* ── Confirm Delete Modal ── */}
+      {/* Confirm Delete Modal */}
       {confirmDel&&(
         <div onClick={()=>setConfirmDel(null)} style={{position:"fixed",inset:0,background:"rgba(26,43,74,0.6)",backdropFilter:"blur(8px)",zIndex:5000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
           <div onClick={e=>e.stopPropagation()} style={{background:C.card,borderRadius:20,width:"100%",maxWidth:380,padding:28,boxShadow:"0 24px 60px rgba(26,43,74,0.25)",border:`1px solid ${C.border}`,textAlign:"center"}}>
             <div style={{width:56,height:56,borderRadius:16,background:C.redL,display:"flex",alignItems:"center",justifyContent:"center",color:C.red,margin:"0 auto 16px",fontSize:24}}>🗑️</div>
             <div style={{fontSize:18,fontWeight:700,color:C.text,marginBottom:8}}>Delete User?</div>
-            <div style={{fontSize:14,color:C.muted,marginBottom:6}}>
-              You are about to delete:
-            </div>
-            <div style={{background:C.bg,borderRadius:12,padding:"12px 16px",marginBottom:18,display:"flex",alignItems:"center",gap:12}}>
+            <div style={{background:C.bg,borderRadius:12,padding:"12px 16px",marginBottom:14,display:"flex",alignItems:"center",gap:12}}>
               <Avatar name={confirmDel.name} size={40}/>
               <div style={{textAlign:"left"}}>
                 <div style={{fontWeight:700,fontSize:15,color:C.text}}>{confirmDel.name}</div>
@@ -87,7 +97,7 @@ export default function AdminPanel({ isMobile }) {
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>setConfirmDel(null)} style={{flex:1,background:"transparent",border:`1.5px solid ${C.border}`,color:C.muted,padding:11,borderRadius:10,cursor:"pointer",fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:14}}>Cancel</button>
               <button onClick={()=>deleteUser(confirmDel)} disabled={deleting===confirmDel.uid}
-                style={{flex:2,background:"linear-gradient(135deg,#C53030,#E53E3E)",border:"none",color:"white",padding:11,borderRadius:10,cursor:"pointer",fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,boxShadow:"0 4px 14px rgba(197,48,48,0.3)",opacity:deleting===confirmDel.uid?0.6:1}}>
+                style={{flex:2,background:"linear-gradient(135deg,#C53030,#E53E3E)",border:"none",color:"white",padding:11,borderRadius:10,cursor:"pointer",fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,opacity:deleting===confirmDel.uid?0.6:1}}>
                 {deleting===confirmDel.uid?"Deleting...":"🗑️ Yes, Delete"}
               </button>
             </div>
@@ -101,7 +111,10 @@ export default function AdminPanel({ isMobile }) {
           <div style={{width:48,height:48,borderRadius:13,background:"rgba(255,255,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",color:"white"}}>{Icons.admin}</div>
           <div>
             <div style={{fontSize:20,fontWeight:700}}>Admin Dashboard</div>
-            <div style={{fontSize:13,opacity:0.7}}>NutriTrack analytics & users</div>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginTop:3}}>
+              <div style={{width:7,height:7,borderRadius:"50%",background:"#68D391"}}/>
+              <span style={{fontSize:12,opacity:0.8}}>Live • Updates automatically</span>
+            </div>
           </div>
         </div>
         <div style={{display:"flex",gap:8}}>
@@ -116,7 +129,7 @@ export default function AdminPanel({ isMobile }) {
       {loading?(
         <div style={{...card,textAlign:"center",padding:56}}>
           <div style={{fontSize:36,marginBottom:12}}>⏳</div>
-          <div style={{color:C.muted,fontWeight:600}}>Loading analytics...</div>
+          <div style={{color:C.muted,fontWeight:600}}>Loading live data...</div>
         </div>
       ) : view==="dashboard" ? (
         <>
@@ -128,7 +141,8 @@ export default function AdminPanel({ isMobile }) {
               {icon:Icons.target,  l:"Total Visits",   v:stats.totalVisits, u:"all time",      c:C.orange, bg:C.orangeL},
               {icon:Icons.zap,     l:"Today's Visits", v:stats.todayVisits, u:"sessions",      c:C.purple, bg:C.purpleL},
             ].map(s=>(
-              <div key={s.l} onClick={s.onClick} style={{...card,cursor:s.onClick?"pointer":"default",transition:"all 0.2s"}}
+              <div key={s.l} onClick={s.onClick}
+                style={{...card,cursor:s.onClick?"pointer":"default",transition:"all 0.2s"}}
                 onMouseEnter={e=>{if(s.onClick){e.currentTarget.style.borderColor=C.accent;e.currentTarget.style.transform="translateY(-2px)";}}}
                 onMouseLeave={e=>{if(s.onClick){e.currentTarget.style.borderColor=C.border;e.currentTarget.style.transform="none";}}}>
                 <div style={{width:40,height:40,borderRadius:10,background:s.bg,display:"flex",alignItems:"center",justifyContent:"center",color:s.c,marginBottom:12}}>{s.icon}</div>
@@ -173,13 +187,13 @@ export default function AdminPanel({ isMobile }) {
           <div style={card}>
             <div style={{fontWeight:700,fontSize:16,color:C.text,marginBottom:16}}>App Information</div>
             {[
-              {l:"App Name",    v:"NutriTrack"},
-              {l:"Live URL",    v:"mydiet-track.netlify.app"},
-              {l:"Database",    v:"Firebase Firestore"},
-              {l:"Location",    v:"asia-south1 (Mumbai)"},
-              {l:"Plan",        v:"Spark (Free)"},
-              {l:"Food Items",  v:"150+ Indian & Global"},
-              {l:"Status",      v:"🟢 Online"},
+              {l:"App Name",   v:"NutriTrack"},
+              {l:"Live URL",   v:"mydiet-track.netlify.app"},
+              {l:"Database",   v:"Firebase Firestore"},
+              {l:"Location",   v:"asia-south1 (Mumbai)"},
+              {l:"Plan",       v:"Spark (Free)"},
+              {l:"Food Items", v:"150+ Indian & Global"},
+              {l:"Status",     v:"🟢 Online"},
             ].map(r=>(
               <div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"11px 0",borderBottom:`1px solid ${C.border}`}}>
                 <span style={{color:C.muted,fontSize:14}}>{r.l}</span>
@@ -188,13 +202,13 @@ export default function AdminPanel({ isMobile }) {
             ))}
           </div>
         </>
-      ) : (
+      ):(
         // ── USERS VIEW ──
         <div style={card}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
             <div>
               <div style={{fontWeight:700,fontSize:18,color:C.text}}>Registered Users</div>
-              <div style={{fontSize:13,color:C.muted,marginTop:3}}>{users.length} total users</div>
+              <div style={{fontSize:13,color:C.muted,marginTop:3}}>{users.length} total users · live</div>
             </div>
             <button onClick={()=>setView("dashboard")} style={{background:C.bg,border:`1.5px solid ${C.border}`,color:C.muted,padding:"8px 16px",borderRadius:10,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'Inter',sans-serif"}}>← Back</button>
           </div>
@@ -207,7 +221,6 @@ export default function AdminPanel({ isMobile }) {
             </div>
           ):(
             <>
-              {/* Table Header */}
               {!isMobile&&(
                 <div style={{display:"grid",gridTemplateColumns:"2fr 1.5fr 1.5fr 1fr 80px",gap:12,padding:"10px 14px",background:C.bg,borderRadius:10,marginBottom:6}}>
                   {["User Name","User ID","Joined Date","Last Active","Action"].map(h=>(
@@ -215,8 +228,6 @@ export default function AdminPanel({ isMobile }) {
                   ))}
                 </div>
               )}
-
-              {/* User Rows */}
               {users.map((u,i)=>(
                 <div key={u.id} style={{display:"grid",gridTemplateColumns:isMobile?"1fr auto":"2fr 1.5fr 1.5fr 1fr 80px",gap:12,padding:"13px 14px",borderRadius:10,alignItems:"center",background:i%2===0?C.bg:"transparent",marginBottom:2}}>
                   <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -231,15 +242,11 @@ export default function AdminPanel({ isMobile }) {
                     <span style={{fontSize:13,color:C.green,fontWeight:600,background:C.greenL,padding:"4px 12px",borderRadius:99,textAlign:"center"}}>{u.joinDate||"—"}</span>
                     <span style={{fontSize:12,color:u.lastActive===new Date().toISOString().split("T")[0]?C.accent:C.dim,fontWeight:600}}>{u.lastActive||"—"}</span>
                   </>}
-                  {/* Delete Button */}
-                  <button
-                    onClick={()=>setConfirmDel(u)}
-                    disabled={deleting===u.uid}
+                  <button onClick={()=>setConfirmDel(u)} disabled={deleting===u.uid}
                     style={{background:C.redL,border:`1.5px solid ${C.red}44`,color:C.red,padding:"7px 12px",borderRadius:9,cursor:"pointer",fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",gap:5,transition:"all 0.2s",opacity:deleting===u.uid?0.5:1}}
                     onMouseEnter={e=>{e.currentTarget.style.background=C.red;e.currentTarget.style.color="white";}}
                     onMouseLeave={e=>{e.currentTarget.style.background=C.redL;e.currentTarget.style.color=C.red;}}>
-                    {deleting===u.uid?"...":Icons.trash}
-                    {!isMobile&&" Delete"}
+                    {deleting===u.uid?"...":Icons.trash}{!isMobile&&" Delete"}
                   </button>
                 </div>
               ))}
