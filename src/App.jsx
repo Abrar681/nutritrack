@@ -49,8 +49,8 @@ function WelcomeScreen({ onDone }) {
   };
 
   return (
-    <div style={{position:"fixed",inset:0,width:"100vw",height:"100vh",background:`linear-gradient(135deg, #1A2B4A 0%, #2B4B8C 50%, #1A2B4A 100%)`,display:"flex",alignItems:"center",justifyContent:"center",padding:20,fontFamily:"'Inter',sans-serif",overflow:"auto"}}>
-      <div style={{background:"white",borderRadius:24,padding:40,width:"100%",maxWidth:420,boxShadow:"0 32px 80px rgba(0,0,0,0.3)",textAlign:"center"}}>
+    <div style={{position:"fixed",inset:0,width:"100vw",height:"100vh",background:`linear-gradient(135deg, #1A2B4A 0%, #2B4B8C 50%, #1A2B4A 100%)`,display:"flex",alignItems:"center",justifyContent:"center",padding:"20px",fontFamily:"'Inter',sans-serif",overflow:"auto",boxSizing:"border-box"}}>
+      <div style={{background:"white",borderRadius:24,padding:40,width:"100%",maxWidth:420,boxShadow:"0 32px 80px rgba(0,0,0,0.3)",textAlign:"center",boxSizing:"border-box",marginLeft:"auto",marginRight:"auto"}}>
         <div style={{width:72,height:72,borderRadius:20,background:"linear-gradient(135deg,#3A7BD5,#2B6CB0)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",color:"white",boxShadow:"0 8px 24px rgba(43,108,176,0.4)"}}>
           {Icons.leaf}
         </div>
@@ -225,7 +225,7 @@ export default function App() {
     <div style={{width:"100vw",minHeight:"100vh",background:C.bg,fontFamily:"'Inter',sans-serif",color:C.text,overflowX:"hidden"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-        html,body,#root{margin:0;padding:0;width:100%;box-sizing:border-box;}
+        html,body,#root{margin:0;padding:0;width:100%;max-width:100%;overflow-x:hidden;box-sizing:border-box;}
         *{box-sizing:border-box;margin:0;padding:0;}
         ::-webkit-scrollbar{width:5px;} ::-webkit-scrollbar-track{background:#EEF4FB;} ::-webkit-scrollbar-thumb{background:#B8CCE0;border-radius:4px;}
         input::placeholder{color:#9BB0C4;}
